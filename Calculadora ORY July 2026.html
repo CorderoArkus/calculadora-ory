@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Calculadora ORY IBKR con tick size</title>
+<style>
+:root{--bg:#0f172a;--card:#111827;--muted:#9ca3af;--text:#e5e7eb;--border:#334155;--input:#0b1220;--blue:#38bdf8;--green:#22c55e;--red:#ef4444;--orange:#f59e0b}
+*{box-sizing:border-box}body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:radial-gradient(circle at top left,#1e293b,var(--bg) 45%);color:var(--text);padding:22px}
+.wrap{max-width:1280px;margin:auto}h1{margin:0 0 6px;font-size:26px}.sub{color:var(--muted);margin-bottom:18px}.grid{display:grid;grid-template-columns:480px 1fr;gap:18px;align-items:start}
+.card{background:rgba(17,24,39,.93);border:1px solid var(--border);border-radius:16px;padding:16px;box-shadow:0 18px 40px rgba(0,0,0,.28)}h2{font-size:18px;margin:0 0 12px}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}.row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:10px}
+.singleRow{display:grid;grid-template-columns:1fr;gap:10px;margin-bottom:10px}
+.priceBox{display:grid;grid-template-columns:42px minmax(130px,1fr) 42px;gap:8px;align-items:center}
+.priceBox input{text-align:center;min-width:0;font-variant-numeric:tabular-nums}
+.tickBtn{background:#334155;color:white;border:1px solid #475569;border-radius:10px;padding:9px 0;font-weight:800;cursor:pointer;line-height:1}
+.tickBtn:hover{filter:brightness(1.12)}
+label{display:block;font-size:12px;color:var(--muted);margin-bottom:5px}input,select{width:100%;background:var(--input);color:var(--text);border:1px solid var(--border);border-radius:10px;padding:9px 10px;font-size:14px;outline:none}input:focus,select:focus{border-color:var(--blue)}
+.results{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin-bottom:16px}.metric{background:rgba(31,41,55,.6);border:1px solid var(--border);border-radius:14px;padding:12px;min-height:76px}.metric .label{color:var(--muted);font-size:12px}.metric .value{font-size:22px;font-weight:800;letter-spacing:-.02em}.small{color:var(--muted);font-size:12px;margin-top:4px}.pos{color:var(--green)}.neg{color:var(--red)}.warn{color:var(--orange)}
+canvas{width:100%;height:520px;background:linear-gradient(180deg,rgba(15,23,42,.8),rgba(2,6,23,.8));border:1px solid var(--border);border-radius:16px;display:block}.sliderWrap{display:grid;grid-template-columns:1fr 220px;gap:12px;align-items:center;margin-top:12px}input[type=range]{padding:0;height:6px;accent-color:var(--blue)}
+button{background:#0ea5e9;color:white;border:0;border-radius:10px;padding:9px 12px;font-weight:700;cursor:pointer}button.secondary{background:#334155}.btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.note{color:var(--muted);font-size:12px;line-height:1.45;margin-top:12px}
+table{width:100%;border-collapse:collapse;font-size:13px}th,td{border-bottom:1px solid var(--border);padding:8px 6px;text-align:right}th:first-child,td:first-child{text-align:left}th{color:var(--muted);font-weight:600}tr:last-child td{border-bottom:0}
+.tooltip{position:fixed;pointer-events:none;background:rgba(2,6,23,.94);border:1px solid var(--border);border-radius:10px;padding:8px 10px;color:var(--text);font-size:12px;display:none;z-index:10;box-shadow:0 10px 25px rgba(0,0,0,.35)}
+@media(max-width:980px){.grid{grid-template-columns:1fr}.results{grid-template-columns:repeat(2,1fr)}.sliderWrap{grid-template-columns:1fr}}@media(max-width:560px){body{padding:12px}.row,.row3{grid-template-columns:1fr}.results{grid-template-columns:1fr}canvas{height:420px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>Calculadora ORY - IBKR con tick size</h1>
+<div class="sub">Rentabilidad interactiva por precio de venta. El precio se ajusta automáticamente al múltiplo del tick y también calcula el P/L al precio actual.</div>
+
+<div class="grid">
+<div class="card">
+<h2>Datos de la posición</h2>
+<div class="row3">
+<div><label>Ticker</label><input id="ticker" value="ORY"></div>
+<div><label>Acciones</label><input id="shares" type="number" step="1" value="4000"></div>
+<div><label>Compra (€)</label><input id="buyPrice" type="number" step="0.001" value="2.748"></div>
+</div>
+<div class="row">
+<div><label>Precio actual (€)</label><div class="priceBox"><button class="tickBtn" type="button" data-step-target="currentPrice" data-step-dir="-1">−</button><input id="currentPrice" type="number" step="0.001" value="2.748"><button class="tickBtn" type="button" data-step-target="currentPrice" data-step-dir="1">+</button></div></div>
+<div><label>Tick size (€)</label><input id="tickSize" type="number" step="0.001" value="0.001"></div>
+</div>
+<div class="singleRow">
+<div><label>Venta simulada (€)</label><div class="priceBox"><button class="tickBtn" type="button" data-step-target="salePrice" data-step-dir="-1">−</button><input id="salePrice" type="number" step="0.001" value="2.748"><button class="tickBtn" type="button" data-step-target="salePrice" data-step-dir="1">+</button></div></div>
+</div>
+<div class="row3">
+<div><label>Comisión compra (%)</label><input id="buyPct" type="number" step="0.01" value="0.05"></div>
+<div><label>Comisión venta (%)</label><input id="sellPct" type="number" step="0.01" value="0.05"></div>
+<div><label>Tasa extra venta (%)</label><input id="extraSellPct" type="number" step="0.01" value="0"></div>
+</div>
+<div class="row3">
+<div><label>Fijo compra (€)</label><input id="buyFixed" type="number" step="0.01" value="0"></div>
+<div><label>Fijo venta (€)</label><input id="sellFixed" type="number" step="0.01" value="0"></div>
+<div><label>Objetivo neto (€)</label><input id="targetEur" type="number" step="50" value="500"></div>
+</div>
+
+<h2 style="margin-top:16px">Gráfica</h2>
+<div class="row3">
+<div><label>Mínimo gráfico (€)</label><input id="minPrice" type="number" step="0.05" value="2.00"></div>
+<div><label>Máximo gráfico (€)</label><input id="maxPrice" type="number" step="0.05" value="4.00"></div>
+<div><label>Métrica</label><select id="metric"><option value="eur" selected>Beneficio neto €</option><option value="pct">Rentabilidad %</option></select></div>
+</div>
+<div class="row">
+<div><label>Filas tabla rápida, en ticks</label><input id="tickRows" type="number" step="1" value="50"></div>
+<div><label>Incremento visual eje X</label><input id="xTicks" type="number" step="1" value="6"></div>
+</div>
+
+<div class="btns">
+<button id="reset">Reset ORY</button>
+<button id="range" class="secondary">Rango 1,50-5,00</button>
+<button id="copy" class="secondary">Copiar resumen</button>
+</div>
+<div class="note">Por defecto: 4.000 acciones a 2,748 €, comisión IBKR 0,05% compra y 0,05% venta. El tick size por defecto es 0,001 €, porque tu precio de compra viene con tres decimales. Puedes cambiarlo a 0,002 / 0,005 / 0,01 si corresponde.</div>
+</div>
+
+<div>
+<div class="results">
+<div class="metric"><div class="label">Venta seleccionada</div><div id="mPrice" class="value">—</div><div id="mTick" class="small">—</div></div>
+<div class="metric"><div class="label">P/L a precio actual</div><div id="mCurrentPnl" class="value">—</div><div id="mCurrentPct" class="small">—</div></div>
+<div class="metric"><div class="label">Beneficio neto venta</div><div id="mPnl" class="value">—</div><div id="mGross" class="small">—</div></div>
+<div class="metric"><div class="label">Rentabilidad neta</div><div id="mPct" class="value">—</div><div id="mCost" class="small">—</div></div>
+<div class="metric"><div class="label">Objetivo / BEP</div><div id="mTarget" class="value">—</div><div id="mBep" class="small">—</div></div>
+</div>
+
+<div class="card">
+<canvas id="chart"></canvas>
+<div class="sliderWrap">
+<input id="saleSlider" type="range" min="2" max="4" step="0.001" value="2.748">
+<div class="priceBox"><button class="tickBtn" type="button" data-step-target="salePrice" data-step-dir="-1">−</button><input id="salePriceMirror" type="number" step="0.001" value="2.748"><button class="tickBtn" type="button" data-step-target="salePrice" data-step-dir="1">+</button></div>
+</div>
+</div>
+
+<div class="card" style="margin-top:18px">
+<h2>Tabla rápida por ticks</h2>
+<table><thead><tr><th>Precio</th><th>Ticks vs venta</th><th>Beneficio neto</th><th>Rentabilidad</th><th>Venta neta</th></tr></thead><tbody id="quickTable"></tbody></table>
+</div>
+</div>
+</div>
+</div>
+<div id="tooltip" class="tooltip"></div>
+
+<script>
+const $=id=>document.getElementById(id);
+const ids=["ticker","shares","buyPrice","currentPrice","tickSize","salePrice","salePriceMirror","buyPct","sellPct","extraSellPct","buyFixed","sellFixed","targetEur","minPrice","maxPrice","metric","tickRows","xTicks","saleSlider"];
+const num=id=>{const v=parseFloat($(id).value);return Number.isFinite(v)?v:0};
+const fmtEur=v=>(v<0?"-":"")+"€"+Math.abs(v).toLocaleString("es-ES",{minimumFractionDigits:2,maximumFractionDigits:2});
+function decimalsFromTick(t){const s=String(t);if(s.includes("e-"))return Math.max(0,parseInt(s.split("e-")[1],10));return (s.split(".")[1]||"").length}
+function tick(){return Math.max(num("tickSize"),0.000001)}
+function roundTick(p){const t=tick();return Math.round(p/t)*t}
+function ceilTick(p){const t=tick();return Math.ceil((p-1e-12)/t)*t}
+function floorTick(p){const t=tick();return Math.floor((p+1e-12)/t)*t}
+function fmtPrice(v){const d=Math.min(Math.max(decimalsFromTick(tick()),2),6);return "€"+v.toLocaleString("es-ES",{minimumFractionDigits:d,maximumFractionDigits:d})}
+function fmtPct(v){return (v<0?"":"+")+v.toLocaleString("es-ES",{minimumFractionDigits:2,maximumFractionDigits:2})+"%"}
+function calc(rawPrice){
+  const price=roundTick(rawPrice), sh=num("shares"), buy=num("buyPrice");
+  const grossCost=sh*buy, buyCom=grossCost*num("buyPct")/100+num("buyFixed"), cost=grossCost+buyCom;
+  const grossSale=sh*price, sellCom=grossSale*(num("sellPct")+num("extraSellPct"))/100+num("sellFixed"), netSale=grossSale-sellCom;
+  const pnl=netSale-cost, pct=cost?pnl/cost*100:0;
+  return {price,sh,grossCost,buyCom,cost,grossSale,sellCom,netSale,pnl,pct};
+}
+function solve(target){
+  let lo=0,hi=100;
+  for(let i=0;i<100;i++){const mid=(lo+hi)/2;if(calc(mid).pnl<target)lo=mid;else hi=mid}
+  return (lo+hi)/2;
+}
+function setStep(){
+  const t=tick();
+  ["salePrice","salePriceMirror","currentPrice"].forEach(id=>$(id).step=t);
+  $("saleSlider").step=t;
+}
+function stepField(targetId, dir){
+  const t=tick();
+  const d=decimalsFromTick(t);
+  const base=roundTick(num(targetId));
+  const next=roundTick(base + dir*t);
+  if(targetId==="salePrice" || targetId==="salePriceMirror"){
+    syncSale(next);
+  } else {
+    $(targetId).value=next.toFixed(d);
+  }
+  update();
+}
+function syncSale(v){
+  const d=decimalsFromTick(tick());
+  let p=roundTick(parseFloat(v)||0);
+  const min=parseFloat($("saleSlider").min);
+  const max=parseFloat($("saleSlider").max);
+  if(Number.isFinite(min)) p=Math.max(p,min);
+  if(Number.isFinite(max)) p=Math.min(p,max);
+  $("salePrice").value=p.toFixed(d);
+  $("salePriceMirror").value=p.toFixed(d);
+  $("saleSlider").value=p;
+}
+function series(){
+  let min=ceilTick(num("minPrice")),max=floorTick(num("maxPrice"));if(max<=min)max=min+tick()*100;
+  const steps=220,arr=[];
+  for(let i=0;i<=steps;i++){const p=roundTick(min+(max-min)*i/steps),c=calc(p),y=$("metric").value==="eur"?c.pnl:c.pct;arr.push({p,y,c})}
+  return arr;
+}
+let state=null;
+function draw(){
+  const canvas=$("chart"),ctx=canvas.getContext("2d"),dpr=window.devicePixelRatio||1,rect=canvas.getBoundingClientRect();
+  canvas.width=rect.width*dpr;canvas.height=rect.height*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);
+  const W=rect.width,H=rect.height,pad={l:76,r:22,t:32,b:58},pw=W-pad.l-pad.r,ph=H-pad.t-pad.b;
+  ctx.clearRect(0,0,W,H);
+  const data=series(),xs=data.map(d=>d.p),ys=data.map(d=>d.y),minX=Math.min(...xs),maxX=Math.max(...xs);
+  let minY=Math.min(...ys,0),maxY=Math.max(...ys,0);if(minY===maxY){minY-=1;maxY+=1}const yp=(maxY-minY)*.12;minY-=yp;maxY+=yp;
+  const xpx=x=>pad.l+(x-minX)/(maxX-minX)*pw,ypx=y=>pad.t+(maxY-y)/(maxY-minY)*ph;
+  ctx.font="12px system-ui";ctx.lineWidth=1;
+  for(let i=0;i<=5;i++){const y=minY+(maxY-minY)*i/5,py=ypx(y);ctx.strokeStyle="rgba(148,163,184,.18)";ctx.beginPath();ctx.moveTo(pad.l,py);ctx.lineTo(W-pad.r,py);ctx.stroke();ctx.fillStyle="rgba(226,232,240,.75)";ctx.fillText($("metric").value==="eur"?(y/1000).toFixed(1)+"k€":y.toFixed(1)+"%",10,py+4)}
+  const xt=Math.max(parseInt(num("xTicks")),2);for(let i=0;i<=xt;i++){const x=minX+(maxX-minX)*i/xt,px=xpx(x);ctx.strokeStyle="rgba(148,163,184,.12)";ctx.beginPath();ctx.moveTo(px,pad.t);ctx.lineTo(px,H-pad.b);ctx.stroke();ctx.fillStyle="rgba(226,232,240,.75)";ctx.fillText(fmtPrice(x),px-20,H-28)}
+  const zero=ypx(0);ctx.strokeStyle="rgba(245,158,11,.8)";ctx.lineWidth=1.5;ctx.setLineDash([6,5]);ctx.beginPath();ctx.moveTo(pad.l,zero);ctx.lineTo(W-pad.r,zero);ctx.stroke();ctx.setLineDash([]);
+  ctx.strokeStyle="#38bdf8";ctx.lineWidth=3;ctx.beginPath();data.forEach((d,i)=>{const px=xpx(d.p),py=ypx(d.y);i?ctx.lineTo(px,py):ctx.moveTo(px,py)});ctx.stroke();
+  const cur=roundTick(num("currentPrice"));if(cur>=minX&&cur<=maxX){const px=xpx(cur);ctx.strokeStyle="rgba(239,68,68,.85)";ctx.lineWidth=2;ctx.setLineDash([4,4]);ctx.beginPath();ctx.moveTo(px,pad.t);ctx.lineTo(px,H-pad.b);ctx.stroke();ctx.setLineDash([]);ctx.fillStyle="#ef4444";ctx.fillText("Actual "+fmtPrice(cur),px+6,pad.t+16)}
+  const sale=roundTick(num("salePrice")),c=calc(sale),y=$("metric").value==="eur"?c.pnl:c.pct;if(sale>=minX&&sale<=maxX){const px=xpx(sale),py=ypx(y);ctx.fillStyle="#22c55e";ctx.beginPath();ctx.arc(px,py,6,0,Math.PI*2);ctx.fill();ctx.strokeStyle="#bbf7d0";ctx.lineWidth=2;ctx.stroke()}
+  ctx.fillStyle="rgba(226,232,240,.95)";ctx.font="700 15px system-ui";ctx.fillText(`${$("ticker").value||"Ticker"}: ${$("metric").value==="eur"?"beneficio neto (€)":"rentabilidad (%)"} por precio de venta`,pad.l,20);
+  state={minX,maxX,pad,W,H};return state;
+}
+function table(){
+  const tbody=$("quickTable");tbody.innerHTML="";
+  const sale=roundTick(num("salePrice")),t=tick(),step=Math.max(parseInt(num("tickRows")),1);
+  const extras=[-2*step,-step,0,step,2*step,5*step];
+  const bepTick=ceilTick(solve(0)),targetTick=ceilTick(solve(num("targetEur")));
+  let prices=extras.map(k=>roundTick(sale+k*t)).concat([bepTick,targetTick]).filter(p=>p>0);
+  prices=[...new Set(prices.map(p=>p.toFixed(decimalsFromTick(t))))].map(Number).sort((a,b)=>a-b);
+  for(const p of prices){const c=calc(p),ticksAway=Math.round((p-sale)/t);const tr=document.createElement("tr");tr.innerHTML=`<td>${fmtPrice(p)}</td><td>${ticksAway>0?"+":""}${ticksAway}</td><td class="${c.pnl>=0?"pos":"neg"}">${fmtEur(c.pnl)}</td><td class="${c.pct>=0?"pos":"neg"}">${fmtPct(c.pct)}</td><td>${fmtEur(c.netSale)}</td>`;tbody.appendChild(tr)}
+}
+function update(){
+  setStep();
+  let min=ceilTick(num("minPrice")),max=floorTick(num("maxPrice"));if(max<=min)max=min+tick()*100;
+  $("saleSlider").min=min;$("saleSlider").max=max;
+  syncSale(num("salePrice"));
+  const c=calc(num("salePrice")),bepExact=solve(0),bepTick=ceilTick(bepExact),targetTick=ceilTick(solve(num("targetEur")));
+  $("mPrice").textContent=fmtPrice(c.price);$("mTick").textContent="Tick size: "+fmtPrice(tick());
+  const currentCalc=calc(num("currentPrice"));
+  $("mCurrentPnl").textContent=fmtEur(currentCalc.pnl);
+  $("mCurrentPnl").className="value "+(currentCalc.pnl>=0?"pos":"neg");
+  $("mCurrentPct").textContent="A "+fmtPrice(currentCalc.price)+" | "+fmtPct(currentCalc.pct);
+  $("mCurrentPct").className="small "+(currentCalc.pnl>=0?"pos":"neg");
+  $("mPnl").textContent=fmtEur(c.pnl);$("mPnl").className="value "+(c.pnl>=0?"pos":"neg");$("mGross").textContent="Venta bruta: "+fmtEur(c.grossSale);
+  $("mPct").textContent=fmtPct(c.pct);$("mPct").className="value "+(c.pct>=0?"pos":"neg");$("mCost").textContent="Coste neto: "+fmtEur(c.cost);
+  $("mTarget").textContent=fmtPrice(targetTick);$("mTarget").className="value warn";$("mBep").textContent="BEP ejecutable: "+fmtPrice(bepTick)+" | exacto "+fmtPrice(bepExact);
+  table();draw();
+}
+ids.forEach(id=>{const el=$(id);el.addEventListener("input",()=>{if(id==="saleSlider"||id==="salePriceMirror")syncSale(el.value);update()});el.addEventListener("change",()=>{if(["salePrice","salePriceMirror","currentPrice"].includes(id))$(id).value=roundTick(num(id));update()})});
+document.querySelectorAll("[data-step-target]").forEach(btn=>{
+  btn.addEventListener("click",()=>{
+    stepField(btn.dataset.stepTarget, parseInt(btn.dataset.stepDir,10));
+  });
+});
+$("reset").onclick=()=>{Object.assign($("ticker"),{value:"ORY"});$("shares").value=4000;$("buyPrice").value=2.748;$("currentPrice").value=2.748;$("tickSize").value=0.001;$("salePrice").value=2.748;$("salePriceMirror").value=2.748;$("buyPct").value=0.05;$("sellPct").value=0.05;$("extraSellPct").value=0;$("buyFixed").value=0;$("sellFixed").value=0;$("targetEur").value=500;$("minPrice").value=2.00;$("maxPrice").value=4.00;$("metric").value="eur";$("tickRows").value=50;$("xTicks").value=6;update()};
+$("range").onclick=()=>{$("minPrice").value=1.50;$("maxPrice").value=5.00;update()};
+$("copy").onclick=async()=>{const c=calc(num("salePrice")),bep=ceilTick(solve(0)),target=ceilTick(solve(num("targetEur")));const currentCalc=calc(num("currentPrice"));
+const txt=`${$("ticker").value} | ${c.sh} acciones | compra ${fmtPrice(num("buyPrice"))}
+Tick size: ${fmtPrice(tick())}
+Precio actual: ${fmtPrice(currentCalc.price)}
+P/L a precio actual: ${fmtEur(currentCalc.pnl)} (${fmtPct(currentCalc.pct)})
+Venta simulada: ${fmtPrice(c.price)}
+P/L neto venta simulada: ${fmtEur(c.pnl)} (${fmtPct(c.pct)})
+Coste neto: ${fmtEur(c.cost)}
+BEP ejecutable: ${fmtPrice(bep)}
+Precio para objetivo ${fmtEur(num("targetEur"))}: ${fmtPrice(target)}`;try{await navigator.clipboard.writeText(txt);alert("Resumen copiado.")}catch(e){alert(txt)}};
+const tooltip=$("tooltip"),canvas=$("chart");
+canvas.addEventListener("mousemove",ev=>{if(!state)return;const rect=canvas.getBoundingClientRect(),x=ev.clientX-rect.left;let p=state.minX+(x-state.pad.l)/(state.W-state.pad.l-state.pad.r)*(state.maxX-state.minX);p=roundTick(p);if(p<state.minX||p>state.maxX){tooltip.style.display="none";return}const c=calc(p);tooltip.style.left=ev.clientX+14+"px";tooltip.style.top=ev.clientY+14+"px";tooltip.innerHTML=`<b>Venta ${fmtPrice(p)}</b><br>P/L: ${fmtEur(c.pnl)}<br>Rentabilidad: ${fmtPct(c.pct)}<br>Venta neta: ${fmtEur(c.netSale)}`;tooltip.style.display="block"});
+canvas.addEventListener("mouseleave",()=>tooltip.style.display="none");window.addEventListener("resize",update);update();
+</script>
+</body>
+</html>
